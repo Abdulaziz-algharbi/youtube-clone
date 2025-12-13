@@ -1,0 +1,51 @@
+import {initializeApp} from "firebase-admin/app";
+import {getFirestore} from "firebase-admin/firestore";
+import * as admin from "firebase-admin";
+import {
+  beforeUserCreated,
+  AuthUserRecord,
+} from "firebase-functions/v2/identity";
+import {logger} from "firebase-functions";
+
+// Initialize Admin SDK once
+initializeApp();
+const db = getFirestore();
+
+export const enforceFirestoreUserOnCreate = beforeUserCreated(async (event) => {
+  const user = event.data as AuthUserRecord;
+
+  const userInfo = {
+    uid: user.uid,
+    email: user.email ?? null,
+    displayName: user.displayName ?? "Guest",
+    photoURL: user.photoURL ?? null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    lastSignInTime: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  logger.info(`beforeUserCreated trigger for ${userInfo.email}`);
+
+  try {
+    const userRef = db.collection("users").doc(userInfo.uid);
+    const docSnap = await userRef.get();
+
+    if (docSnap.exists) {
+      // Update only the lastSignInTime if user already exists
+      await userRef.update({
+        lastSignInTime: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      logger.info(`Updated existing user document: ${userInfo.uid}`);
+      return;
+    }
+
+    // Create new user document
+    await userRef.set(userInfo);
+    logger.info(`Created Firestore user document for UID: ${userInfo.uid}`);
+  } catch (error) {
+    logger.error(
+      `Error creating/updating Firestore user for ${userInfo.email}:`,
+      error
+    );
+    throw new Error(`Firestore write failed: ${error}`);
+  }
+});
