@@ -6,10 +6,15 @@ import {
   AuthUserRecord,
 } from "firebase-functions/v2/identity";
 import {logger} from "firebase-functions";
+import {Storage} from "@google-cloud/storage";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
 
 // Initialize Admin SDK once
 initializeApp();
 const db = getFirestore();
+const storage = new Storage();
+
+const rawVideoBucketName = "mihawk-53-raw-videos";
 
 export const enforceFirestoreUserOnCreate = beforeUserCreated(async (event) => {
   const user = event.data as AuthUserRecord;
@@ -49,3 +54,31 @@ export const enforceFirestoreUserOnCreate = beforeUserCreated(async (event) => {
     throw new Error(`Firestore write failed: ${error}`);
   }
 });
+
+export const generateUploadUrl = onCall(
+  {maxInstances: 1},
+  async (request) => {
+    // Check if the user is authenticated
+    if (!request.auth) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The function must be called while authenticated"
+      );
+    }
+
+    const auth = request.auth;
+    const data = request.data;
+    const bucket = storage.bucket(rawVideoBucketName);
+
+    // Generate a unique filename
+    const fileName = `${auth.uid}-${Date.now()}.${data.fileExtension}`;
+
+    // Get a v4 signed URL for uploading file
+    const [url] = await bucket.file(fileName).getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+    });
+    return {url, fileName};
+  }
+);
