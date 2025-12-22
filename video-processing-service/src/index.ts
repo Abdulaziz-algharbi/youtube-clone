@@ -7,60 +7,63 @@ import {
   setupDirectories,
   uploadProcessedVideo,
 } from "./storage";
-
-setupDirectories();
+import { isVideoNew, setVideo } from "./firestore";
 
 const app = express();
 app.use(express.json());
 
 app.post("/process-video", async (req, res) => {
-  // Get the bucket and filename from the Cloud Pub/Sub message
-  let data;
+  // ✅ ACK Pub/Sub immediately
+  res.status(204).send();
+
   try {
     const message = Buffer.from(req.body.message.data, "base64").toString(
       "utf8"
     );
-    data = JSON.parse(message);
+    const data = JSON.parse(message);
+
     if (!data.name) {
       throw new Error("Invalid message payload received.");
     }
-  } catch (error) {
-    console.error(error);
-    return res.status(400).send("Bad Request: missing filename.");
-  }
 
-  const inputFileName = data.name;
-  const outputFileName = `processed-${inputFileName}`;
+    const inputFileName = data.name;
+    const outputFileName = `processed-${inputFileName}`;
+    const videoId = inputFileName.split(".")[0];
 
-  // Download the raw video from Cloud Storage
-  await downloadRawVideo(inputFileName);
+    if (!(await isVideoNew(videoId))) {
+      console.log(`Video ${videoId} already handled`);
+      return;
+    }
 
-  // Convert the video to 360p
-  try {
+    await setVideo(videoId, {
+      id: videoId,
+      uid: videoId.split("-")[0],
+      status: "processing",
+    });
+
+    await downloadRawVideo(inputFileName);
     await convertVideo(inputFileName, outputFileName);
-  } catch (err) {
+    await uploadProcessedVideo(outputFileName);
+
+    await setVideo(videoId, {
+      status: "processed",
+      filename: outputFileName,
+    });
+
     await Promise.all([
       deleteRawVideo(inputFileName),
       deleteProcessedVideo(outputFileName),
     ]);
-    console.error(err);
-    return res
-      .status(500)
-      .send(`Internal Server Error: video processing failed.`);
+
+    console.log(`Video ${videoId} processed successfully`);
+  } catch (err) {
+    console.error("Video processing failed:", err);
   }
-
-  // Upload the processed video to Cloud Storage
-  await uploadProcessedVideo(outputFileName);
-
-  await Promise.all([
-    deleteRawVideo(inputFileName),
-    deleteProcessedVideo(outputFileName),
-  ]);
-
-  return res.status(200).send("Processing finished successfully.");
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Video Processing service listening at http://localhost:${port}`);
+const port = Number(process.env.PORT);
+
+app.listen(port, "0.0.0.0", async () => {
+  await setupDirectories();
+  console.log(`Video Processing service listening on port ${port}`);
 });

@@ -16,6 +16,17 @@ const storage = new Storage();
 
 const rawVideoBucketName = "mihawk-53-raw-videos";
 
+const videoCollectionId = "videos";
+
+export interface Video {
+  id?: string;
+  uid?: string;
+  filename?: string;
+  status?: "processing" | "processed";
+  title?: string;
+  description?: string;
+}
+
 export const enforceFirestoreUserOnCreate = beforeUserCreated(async (event) => {
   const user = event.data as AuthUserRecord;
 
@@ -82,3 +93,8 @@ export const generateUploadUrl = onCall(
     return {url, fileName};
   }
 );
+
+export const getVideos = onCall({maxInstances: 1}, async () => {
+  const snapshot = await db.collection(videoCollectionId).limit(10).get();
+  return snapshot.docs.map((doc) => doc.data());
+});

@@ -9,13 +9,18 @@ import {
 } from "../firebase/firebase";
 import styles from "./sign-in.module.css";
 
-const SignIn = () => {
+interface SignInProps {
+  currUser: (user: User | null) => void;
+}
+
+const SignIn = ({ currUser }: SignInProps) => {
   // Init user State
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChangedHelper((user) => {
       setUser(user);
+      currUser(user);
     });
 
     // Cleanup subscription on unmount
