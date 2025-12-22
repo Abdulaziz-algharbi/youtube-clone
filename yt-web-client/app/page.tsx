@@ -1,12 +1,24 @@
-export default function Home() {
+import styles from "./page.module.css";
+import Link from "next/link";
+import Image from "next/image";
+import { getVideos } from "./firebase/functions";
+
+export default async function Home() {
+  const videos = await getVideos();
+
   return (
-    <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-      <div>
-        <p>
-          Get started by editing&nbsp;
-          <code>app/page.tsx</code>
-        </p>
-      </div>
+    <main>
+      {videos.map((video) => (
+        <Link key={video.id} href={`/watch?v=${video.filename}`}>
+          <Image
+            src={"/thumbnail.png"}
+            alt="video"
+            width={120}
+            height={80}
+            className={styles.thumbnail}
+          ></Image>
+        </Link>
+      ))}
     </main>
   );
 }

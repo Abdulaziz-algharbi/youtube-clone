@@ -42,13 +42,15 @@ app.post("/process-video", async (req, res) => {
     });
 
     await downloadRawVideo(inputFileName);
+    console.log("START convertVideo", { inputFileName, outputFileName });
     await convertVideo(inputFileName, outputFileName);
+    console.log("END convertVideo");
+
     await uploadProcessedVideo(outputFileName);
 
-    await setVideo(videoId, {
-      status: "processed",
-      filename: outputFileName,
-    });
+    console.log("About to mark processed", { videoId, outputFileName });
+    await setVideo(videoId, { status: "processed", filename: outputFileName });
+    console.log("Marked processed", { videoId });
 
     await Promise.all([
       deleteRawVideo(inputFileName),
