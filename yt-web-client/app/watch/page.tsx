@@ -1,19 +1,10 @@
-"use client";
+import { Suspense } from "react";
+import WatchClient from "./WatchClient";
 
-import { useSearchParams } from "next/navigation";
-
-import React from "react";
-
-const Watch = () => {
-  const videoPrefix =
-    "https://storage.googleapis.com/mihawk-53-processed-videos/";
-  const videoSrc = useSearchParams().get("v");
+export default function WatchPage() {
   return (
-    <div>
-      <h1>Watch Page</h1>
-      <video controls src={videoPrefix + videoSrc} />
-    </div>
+    <Suspense fallback={<div>Loading video...</div>}>
+      <WatchClient />
+    </Suspense>
   );
-};
-
-export default Watch;
+}
